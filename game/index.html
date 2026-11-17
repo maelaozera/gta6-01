@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vice Shores — Open World Crime</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0b1020; font-family: "Segoe UI", Arial, sans-serif; color: #fff; }
+  #app { position: fixed; inset: 0; }
+  canvas.webgl { display: block; }
+  .hidden { display: none !important; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #minimap { position: absolute; top: 12px; right: 12px; border: 2px solid rgba(255,255,255,.55);
+    border-radius: 50%; background: rgba(8, 20, 28, .72); box-shadow: 0 0 12px rgba(0,0,0,.5); }
+  #wanted { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 30px; letter-spacing: 4px; color: #ffd23e;
+    text-shadow: 0 0 6px #000, 0 2px 0 #000; }
+  #wanted .dim { color: rgba(255,255,255,.28); }
+  #stats { position: absolute; top: 12px; left: 14px; font-size: 15px; line-height: 1.5;
+    text-shadow: 0 1px 3px #000; }
+  #money { font-size: 26px; font-weight: 800; color: #7dff9a; }
+  #healthbar { width: 190px; height: 14px; border: 2px solid #fff; background: #222;
+    border-radius: 3px; margin-top: 4px; }
+  #healthfill { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #a5ff6e); }
+  #clock { font-size: 20px; font-weight: 700; }
+  #objective { position: absolute; top: 118px; left: 14px; max-width: 340px;
+    background: rgba(0,0,0,.55); border-left: 4px solid #ffd23e; padding: 8px 10px;
+    font-size: 14px; line-height: 1.45; border-radius: 0 6px 6px 0; }
+  #objective b { color: #ffd23e; }
+  #dialog { position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
+    max-width: 560px; background: rgba(0,0,0,.68); border-radius: 8px; padding: 10px 16px;
+    font-size: 15px; line-height: 1.5; text-align: center; }
+  #dialog b { color: #7fd4ff; }
+  #speedo { position: absolute; right: 16px; bottom: 14px; text-align: right;
+    text-shadow: 0 1px 3px #000; }
+  #speedo .num { font-size: 44px; font-weight: 800; line-height: 1; }
+  #speedo .lbl { font-size: 13px; color: #cfe8ff; }
+  #ammo { position: absolute; left: 16px; bottom: 14px; font-size: 17px; font-weight: 700;
+    text-shadow: 0 1px 3px #000; }
+  #toast { position: absolute; left: 50%; top: 34%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 800; color: #ffd23e; text-shadow: 0 2px 8px #000;
+    text-align: center; }
+  #hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    font-size: 13px; color: #dfe9ff; background: rgba(0,0,0,.45); padding: 5px 12px;
+    border-radius: 20px; white-space: nowrap; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px;
+    transform: translate(-50%, -50%); }
+  #crosshair:before, #crosshair:after { content: ""; position: absolute; background: #fff;
+    box-shadow: 0 0 3px #000; }
+  #crosshair:before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair:after { left: 0; top: 8px; width: 18px; height: 2px; }
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(180deg, rgba(6,12,30,.82), rgba(20,8,40,.88)); }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 6px; color: #ffd23e;
+    text-shadow: 0 4px 0 #b3541e, 0 8px 24px #000; font-style: italic; }
+  .screen h2 { font-weight: 400; color: #9fd8ff; margin: 6px 0 22px; letter-spacing: 3px; }
+  .screen p { max-width: 620px; line-height: 1.6; color: #e8eefc; }
+  .screen button { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700;
+    padding: 12px 34px; margin: 6px; border-radius: 8px; border: 2px solid #ffd23e;
+    background: #ffd23e; color: #201400; }
+  .screen button.alt { background: transparent; color: #ffd23e; }
+  .screen button:hover { filter: brightness(1.12); }
+  .keys { font-size: 14px; color: #c9d6ef; line-height: 1.9; margin-top: 18px; }
+  .keys b { color: #fff; background: #333; border-radius: 4px; padding: 1px 7px; }
+  #wasted { color: #ff5252; }
+  #wasted h1 { color: #ff5252; text-shadow: 0 4px 0 #5a0000, 0 8px 24px #000; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud" class="hidden">
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div id="wanted"></div>
+  <div id="stats">
+    <div id="money">$0</div>
+    <div id="healthbar"><div id="healthfill"></div></div>
+    <div id="clock">08:00</div>
+  </div>
+  <div id="objective"></div>
+  <div id="dialog" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+  <div id="speedo" class="hidden"><div class="num">0</div><div class="lbl">km/h</div></div>
+  <div id="ammo"></div>
+  <div id="crosshair" class="hidden"></div>
+  <div id="hint">WASD jalan / mengemudi &nbsp;·&nbsp; E masuk / keluar mobil &nbsp;·&nbsp; Klik tembak &nbsp;·&nbsp; F pukul &nbsp;·&nbsp; Shift lari &nbsp;·&nbsp; P jeda &nbsp;·&nbsp; M suara</div>
+</div>
+<div id="menu" class="screen">
+  <h1>VICE SHORES</h1>
+  <h2>OPEN WORLD CRIME &nbsp;·&nbsp; SUNSET CITY</h2>
+  <p>Selamat datang di Vice Shores, kota pantai yang tak pernah tidur. Mulai dari nol,
+  kerjakan misi untuk Marco, curi mobil, kabur dari polisi, dan bangun namamu di jalanan.
+  Semua yang kamu lihat — kota, mobil, cerita — dibuat dari nol untuk game ini.</p>
+  <div>
+    <button id="btnNew">NEW GAME</button>
+    <button id="btnContinue" class="alt">CONTINUE</button>
+  </div>
+  <div class="keys">
+    <b>W A S D</b> bergerak / mengemudi &nbsp; <b>Mouse</b> kamera &nbsp; <b>E</b> masuk / keluar mobil<br>
+    <b>Klik</b> tembak &nbsp; <b>F</b> pukul &nbsp; <b>Shift</b> lari &nbsp; <b>Spasi</b> rem tangan<br>
+    <b>P</b> jeda &nbsp; <b>M</b> suara on/off &nbsp; <b>H</b> klakson
+  </div>
+</div>
+<div id="pause" class="screen hidden">
+  <h1>PAUSED</h1>
+  <p>Game dijeda. Progres tersimpan otomatis.</p>
+  <div>
+    <button id="btnResume">RESUME</button>
+    <button id="btnSaveQuit" class="alt">SAVE &amp; MENU</button>
+  </div>
+</div>
+<div id="wasted" class="screen hidden">
+  <h1 id="wastedTitle">WASTED</h1>
+  <p id="wastedText"></p>
+  <div><button id="btnRetry">COBA LAGI</button></div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
